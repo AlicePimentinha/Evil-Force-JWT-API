@@ -1,11 +1,4 @@
-PyQt5
-requests
-python-dotenv 
 fastapi
-<<<<<<< HEAD
-uvicorn
-=======
 uvicorn
 PyJWT
-requests
->>>>>>> c51c66b4f257ad94957a898bea09d668f7844d6f
+python-dotenv
