@@ -47,6 +47,11 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
+# Novo modelo para login
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 # Dados em memória (em produção, use um banco de dados)
 users_db = {
     1: {
@@ -108,14 +113,30 @@ async def api_root():
     return {"message": "Evil Force JWT Auth API", "version": "1.1.0"}
 
 @app.post("/api/login", response_model=Token)
-async def login(form_data: UserCreate):
+async def login(form_data: LoginRequest):
     user = get_user(form_data.username)
     if not user or hashlib.sha256(form_data.password.encode()).hexdigest() != user["password"]:
         raise HTTPException(status_code=400, detail="Incorrect username or password")
-    
+    # Gera ui_permissions para o token
+    ui_perms = {p: True for p in user['permissions']}
+    all_perms = [
+        "tab_dashboard", "tab_scan", "tab_jwt", "tab_fuzzing", "tab_osint",
+        "tab_shodan", "tab_sql", "tab_crypto", "tab_wordlist", "tab_pipeline",
+        "tab_fake_pix", "tab_database", "tab_settings", "chat_valac",
+        "notifications", "vpn_manager"
+    ]
+    for p in all_perms:
+        if p not in ui_perms:
+            ui_perms[p] = False
     access_token_expires = datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user["username"]}, expires_delta=access_token_expires
+        data={
+            "sub": user["username"],
+            "id": user["id"],
+            "ui_permissions": ui_perms,
+            "role": "admin" if "admin" in user["permissions"] else "user"
+        },
+        expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
