@@ -56,11 +56,18 @@ class LoginRequest(BaseModel):
 users_db = {
     1: {
         "id": 1, "username": "admin", "password": hashlib.sha256("admin123".encode()).hexdigest(),
-        "permissions": ["admin", "user"], "is_active": True
+        # Admin tem acesso a tudo
+        "permissions": [
+            "tab_dashboard", "tab_scan", "tab_jwt", "tab_fuzzing", "tab_osint",
+            "tab_shodan", "tab_sql", "tab_crypto", "tab_wordlist", "tab_pipeline",
+            "tab_fake_pix", "tab_database", "tab_settings", "chat_valac",
+            "notifications", "vpn_manager"
+        ], "is_active": True
     },
     2: {
         "id": 2, "username": "user", "password": hashlib.sha256("user123".encode()).hexdigest(),
-        "permissions": ["user"], "is_active": True
+        # User só pode dashboard e jwt
+        "permissions": ["tab_dashboard", "tab_jwt"], "is_active": True
     }
 }
 
@@ -118,23 +125,20 @@ async def login(form_data: LoginRequest):
     if not user or hashlib.sha256(form_data.password.encode()).hexdigest() != user["password"]:
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     # Gera ui_permissions para o token
-    ui_perms = {p: True for p in user['permissions']}
     all_perms = [
         "tab_dashboard", "tab_scan", "tab_jwt", "tab_fuzzing", "tab_osint",
         "tab_shodan", "tab_sql", "tab_crypto", "tab_wordlist", "tab_pipeline",
         "tab_fake_pix", "tab_database", "tab_settings", "chat_valac",
         "notifications", "vpn_manager"
     ]
-    for p in all_perms:
-        if p not in ui_perms:
-            ui_perms[p] = False
+    ui_perms = {p: (p in user['permissions']) for p in all_perms}
     access_token_expires = datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={
             "sub": user["username"],
             "id": user["id"],
             "ui_permissions": ui_perms,
-            "role": "admin" if "admin" in user["permissions"] else "user"
+            "role": "admin" if "tab_database" in user["permissions"] else "user"
         },
         expires_delta=access_token_expires
     )
@@ -189,7 +193,7 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     """Retorna informações do usuário atual (requer token)"""
     # Adiciona o campo 'role' explicitamente
     user_data = {k: v for k, v in current_user.items() if k != "password"}
-    user_data["role"] = "admin" if "admin" in current_user.get("permissions", []) else "user"
+    user_data["role"] = "admin" if "tab_database" in current_user.get("permissions", []) else "user"
     return user_data
 
 @app.get("/")
