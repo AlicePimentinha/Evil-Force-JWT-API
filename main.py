@@ -187,7 +187,10 @@ async def delete_user(user_id: int):
 @app.get("/api/me", response_model=User)
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):
     """Retorna informações do usuário atual (requer token)"""
-    return User(**{k: v for k, v in current_user.items() if k != "password"})
+    # Adiciona o campo 'role' explicitamente
+    user_data = {k: v for k, v in current_user.items() if k != "password"}
+    user_data["role"] = "admin" if "admin" in current_user.get("permissions", []) else "user"
+    return user_data
 
 @app.get("/")
 async def root():
