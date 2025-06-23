@@ -56,7 +56,6 @@ class LoginRequest(BaseModel):
 users_db = {
     1: {
         "id": 1, "username": "admin", "password": hashlib.sha256("admin123".encode()).hexdigest(),
-        # Admin tem acesso a tudo
         "permissions": [
             "tab_dashboard", "tab_scan", "tab_jwt", "tab_fuzzing", "tab_osint",
             "tab_shodan", "tab_sql", "tab_crypto", "tab_wordlist", "tab_pipeline",
@@ -66,7 +65,6 @@ users_db = {
     },
     2: {
         "id": 2, "username": "user", "password": hashlib.sha256("user123".encode()).hexdigest(),
-        # User só pode dashboard e jwt
         "permissions": ["tab_dashboard", "tab_jwt"], "is_active": True
     }
 }
@@ -148,18 +146,26 @@ async def login(form_data: LoginRequest):
 async def read_users():
     return [User(**user) for user in users_db.values()]
 
+ALL_UI_PERMS = [
+    "tab_dashboard", "tab_scan", "tab_jwt", "tab_fuzzing", "tab_osint",
+    "tab_shodan", "tab_sql", "tab_crypto", "tab_wordlist", "tab_pipeline",
+    "tab_fake_pix", "tab_database", "tab_settings", "chat_valac",
+    "notifications", "vpn_manager"
+]
+
 @app.post("/api/users", response_model=User)
 async def create_user(user: UserCreate):
     if user.id in users_db:
         raise HTTPException(status_code=400, detail=f"User ID {user.id} already exists")
     if get_user(user.username):
         raise HTTPException(status_code=400, detail="Username already registered")
-    
+    # Filtra permissões para aceitar apenas nomes válidos de UI
+    user_permissions = [p for p in user.permissions if p in ALL_UI_PERMS]
     new_user = {
         "id": user.id, 
         "username": user.username, 
         "password": hashlib.sha256(user.password.encode()).hexdigest(),
-        "permissions": user.permissions, 
+        "permissions": user_permissions, 
         "is_active": True
     }
     users_db[user.id] = new_user
@@ -169,16 +175,15 @@ async def create_user(user: UserCreate):
 async def update_user(user_id: int, user_update: UserUpdate):
     if user_id not in users_db:
         raise HTTPException(status_code=404, detail="User not found")
-    
     db_user = users_db[user_id]
     update_data = user_update.dict(exclude_unset=True)
-    
     if "password" in update_data:
         update_data["password"] = hashlib.sha256(update_data["password"].encode()).hexdigest()
-        
+    # Filtra permissões para aceitar apenas nomes válidos de UI
+    if "permissions" in update_data:
+        update_data["permissions"] = [p for p in update_data["permissions"] if p in ALL_UI_PERMS]
     for key, value in update_data.items():
         db_user[key] = value
-        
     return User(**db_user)
 
 @app.delete("/api/users/{user_id}", response_model=dict)
